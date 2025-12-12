@@ -12,7 +12,16 @@ pip install -r requirements.txt
 uvicorn main:app --reload
 ```
 
-El backend carga `pipeline.pkl` ubicado en `backend/` y persiste los registros en `backend/history.csv`.
+Puntos clave:
+
+- El modelo se carga una sola vez desde `backend/pipeline.pkl` (debes colocarlo antes de iniciar la API).
+- El historial se almacena en `backend/history.csv` y se crea automáticamente con cabecera si no existe.
+- CORS se puede restringir con la variable de entorno `ALLOWED_ORIGINS` (por defecto permite todos los orígenes).
+
+Endpoints principales:
+
+- `POST /predict`: recibe las 8 variables del formulario y devuelve diagnóstico, semáforo, probabilidades y recomendación; además guarda el registro en el historial.
+- `GET /history?limit=200`: devuelve los últimos registros (ordenados desc) desde `history.csv`.
 
 ## Frontend (React + Vite)
 

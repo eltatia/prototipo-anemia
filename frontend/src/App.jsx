@@ -31,6 +31,13 @@ function App() {
     return entries.sort((a, b) => severityOrder.indexOf(b[0]) - severityOrder.indexOf(a[0]))
   }, [result])
 
+  const formatFecha = (value) => {
+    if (!value) return '—'
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return value
+    return date.toLocaleString()
+  }
+
   const handleChange = (e) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
@@ -61,8 +68,14 @@ function App() {
         body: JSON.stringify(payload),
       })
       if (!response.ok) {
-        const detail = await response.json()
-        throw new Error(detail?.detail || 'Error al procesar la solicitud')
+        let detail = 'Error al procesar la solicitud'
+        try {
+          const parsed = await response.json()
+          detail = parsed?.detail || detail
+        } catch (parseError) {
+          // ignore JSON parse errors
+        }
+        throw new Error(detail)
       }
       const data = await response.json()
       setResult(data)
@@ -249,19 +262,21 @@ function App() {
                     <th>Hemoglobina</th>
                     <th>Edad</th>
                     <th>Sexo</th>
+                    <th>Diresa</th>
+                    <th>Consejería</th>
                   </tr>
                 </thead>
                 <tbody>
                   {history.length === 0 && (
                     <tr>
-                      <td colSpan="5" className="muted">
+                      <td colSpan="7" className="muted">
                         No hay registros disponibles.
                       </td>
                     </tr>
                   )}
                   {history.map((row, idx) => (
                     <tr key={`${row.fecha}-${idx}`}>
-                      <td>{row.fecha}</td>
+                      <td>{formatFecha(row.fecha)}</td>
                       <td>
                         <span className="pill">
                           {renderSemaforo(row.dx_predicho)} {row.dx_predicho}
@@ -270,6 +285,8 @@ function App() {
                       <td>{row.Hemoglobina}</td>
                       <td>{row.EdadMeses}</td>
                       <td>{row.Sexo}</td>
+                      <td>{row.Diresa}</td>
+                      <td>{row.Consejeria ? 'Sí' : 'No'}</td>
                     </tr>
                   ))}
                 </tbody>
