@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 from threading import Lock
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import joblib
 import pandas as pd
@@ -60,10 +60,31 @@ def ensure_history_file() -> None:
         df.to_csv(HISTORY_PATH, index=False)
 
 
-try:
-    pipeline = joblib.load(MODEL_PATH)
-except Exception as exc:  # pragma: no cover - startup failure path
-    raise RuntimeError(f"No se pudo cargar el modelo desde {MODEL_PATH}: {exc}") from exc
+pipeline_lock = Lock()
+pipeline = None
+
+
+def cargar_pipeline():
+    global pipeline
+    with pipeline_lock:
+        if pipeline is not None:
+            return pipeline
+        try:
+            pipeline = joblib.load(MODEL_PATH)
+        except FileNotFoundError:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "No se encontró el archivo de modelo 'pipeline.pkl'. "
+                    "Asegúrese de generarlo y colocarlo en la carpeta backend."
+                ),
+            )
+        except Exception as exc:  # pragma: no cover - startup failure path
+            raise HTTPException(
+                status_code=500,
+                detail=f"No se pudo cargar el modelo desde {MODEL_PATH}: {exc}",
+            )
+        return pipeline
 
 ensure_history_file()
 
@@ -97,10 +118,12 @@ def guardar_historial(fila: Dict[str, str | int | float]) -> None:
 @app.post("/predict")
 async def predict(payload: PredictPayload):
     try:
+        pipeline = cargar_pipeline()
         X = pd.DataFrame([payload.model_dump()])
         dx_predicho = pipeline.predict(X)[0]
         proba = pipeline.predict_proba(X)[0]
-        clases = pipeline.named_steps["model"].classes_
+        clases: Optional[List[str]] = getattr(pipeline.named_steps.get("model"), "classes_", None)
+        clases = clases if clases is not None else list(range(len(proba)))
     except Exception as exc:  # pragma: no cover - runtime errors
         raise HTTPException(status_code=500, detail=f"Error al generar predicción: {exc}") from exc
 
@@ -146,4 +169,9 @@ async def history(limit: int = Query(200, ge=1)) -> List[Dict]:
 
 @app.get("/")
 async def root():
-    return {"status": "ok"}
+    try:
+        _ = cargar_pipeline()
+        model_status = "loaded"
+    except HTTPException as exc:
+        model_status = f"error: {exc.detail}"
+    return {"status": "ok", "model": model_status}
