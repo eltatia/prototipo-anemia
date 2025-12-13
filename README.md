@@ -15,6 +15,7 @@ uvicorn main:app --reload
 Puntos clave:
 
 - El modelo se carga una sola vez desde `backend/pipeline.pkl` (debes colocarlo antes de iniciar la API).
+- Para evitar errores al cargar el modelo, usa la versión incluida en `requirements.txt` (`scikit-learn==1.6.1`), que coincide con la usada para entrenar `pipeline.pkl`.
 - El historial se almacena en `backend/history.csv` y se crea automáticamente con cabecera si no existe.
 - CORS se puede restringir con la variable de entorno `ALLOWED_ORIGINS` (por defecto permite todos los orígenes).
 
