@@ -83,6 +83,25 @@ def _patch_sklearn_remainder_list() -> None:
 _patch_sklearn_remainder_list()
 
 
+def _patch_sklearn_remainder_list() -> None:
+    """Asegura compatibilidad al cargar el pipeline con versiones < 1.6 de sklearn."""
+
+    try:
+        from sklearn.compose import _column_transformer
+    except Exception:
+        return
+
+    if hasattr(_column_transformer, "_RemainderColsList"):
+        return
+
+    class _RemainderColsList(list):  # type: ignore
+        """Compatibilidad mínima para modelos entrenados con sklearn>=1.6."""
+
+    _column_transformer._RemainderColsList = _RemainderColsList  # type: ignore
+
+
+_patch_sklearn_remainder_list()
+
 try:
     pipeline = joblib.load(MODEL_PATH)
 except Exception as exc:  # pragma: no cover - startup failure path
