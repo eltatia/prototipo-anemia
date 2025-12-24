@@ -8,6 +8,8 @@ from typing import Dict, List
 
 import joblib
 import pandas as pd
+import os
+
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -15,6 +17,19 @@ from pydantic import BaseModel, Field
 BASE_DIR = Path(__file__).parent
 MODEL_PATH = BASE_DIR / "pipeline.pkl"
 HISTORY_PATH = BASE_DIR / "history.csv"
+HISTORY_COLUMNS = [
+    "fecha",
+    "EdadMeses",
+    "Hemoglobina",
+    "AlturaREN",
+    "Diresa",
+    "Consejeria",
+    "Suplementacion",
+    "Sexo",
+    "Cred",
+    "dx_predicho",
+    "probabilidades_json",
+]
 
 csv_lock = Lock()
 
@@ -32,10 +47,12 @@ class PredictPayload(BaseModel):
 
 app = FastAPI(title="Triaje digital de anemia", version="1.0.0")
 
+allowed_origins = [origin.strip() for origin in os.getenv("ALLOWED_ORIGINS", "*").split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=allowed_origins,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -43,21 +60,27 @@ app.add_middleware(
 
 def ensure_history_file() -> None:
     if not HISTORY_PATH.exists():
-        columns = [
-            "fecha",
-            "EdadMeses",
-            "Hemoglobina",
-            "AlturaREN",
-            "Diresa",
-            "Consejeria",
-            "Suplementacion",
-            "Sexo",
-            "Cred",
-            "dx_predicho",
-            "probabilidades_json",
-        ]
-        df = pd.DataFrame(columns=columns)
+        df = pd.DataFrame(columns=HISTORY_COLUMNS)
         df.to_csv(HISTORY_PATH, index=False)
+
+def _patch_sklearn_remainder_list() -> None:
+    """Asegura compatibilidad al cargar el pipeline con versiones < 1.6 de sklearn."""
+
+    try:
+        from sklearn.compose import _column_transformer
+    except Exception:
+        return
+
+    if hasattr(_column_transformer, "_RemainderColsList"):
+        return
+
+    class _RemainderColsList(list):  # type: ignore
+        """Compatibilidad mínima para modelos entrenados con sklearn>=1.6."""
+
+    _column_transformer._RemainderColsList = _RemainderColsList  # type: ignore
+
+
+_patch_sklearn_remainder_list()
 
 
 try:

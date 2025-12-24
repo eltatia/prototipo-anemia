@@ -20,4 +20,4 @@ build/
 .history
 .idea
 backend/history.csv
-backend/pipeline.pkl
+# backend/pipeline.pkl
